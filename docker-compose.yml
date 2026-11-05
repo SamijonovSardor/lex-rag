@@ -1,0 +1,26 @@
+# Local Postgres with pgvector for the index (Phase 2).
+#   docker compose up -d db
+# Host port 5434: 5432/5433 are often taken by a native PostgreSQL install.
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: lexrag-db
+    environment:
+      POSTGRES_USER: lexrag
+      POSTGRES_PASSWORD: lexrag
+      POSTGRES_DB: lexrag
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - lexrag_pgdata:/var/lib/postgresql/data
+    command: ["postgres", "-c", "shared_buffers=256MB", "-c", "maintenance_work_mem=512MB"]
+    shm_size: 512mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lexrag -d lexrag"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  lexrag_pgdata:

@@ -1,0 +1,56 @@
+[project]
+name = "lexrag"
+version = "0.1.0"
+description = "Retrieval-augmented QA over Uzbekistan legislation (lex.uz)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28",
+    "selectolax>=0.3.27",
+    "tenacity>=9.0",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "defusedxml>=0.7",
+    "psycopg[binary]>=3.2",
+    "pgvector>=0.3",
+    "numpy>=2.1",
+    "fastapi>=0.115",
+    "uvicorn>=0.32",
+    "psycopg-pool>=3.2",
+]
+
+[project.scripts]
+lexrag = "lexrag.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "respx>=0.21",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lexrag"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = ["live: hits the real lex.uz (deselected by default)"]
+addopts = "-m 'not live'"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003"]  # Uzbek text legitimately uses ʻ ʼ ‘ and Cyrillic
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["E501"]  # one-off evaluation scripts print wide report lines
