@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     rerank_model: str = "cohere/rerank-5-pro"  # empty = no reranking (docs/faza-4.md)
     retrieval_candidates: int = 50  # per search path (vector, full text) before fusion
     rerank_candidates: int = 30  # fused candidates the reranker reads
+    neighbours_of: int = (
+        0  # >0: adjacent articles of the top N join the rerank pool (tested: no gain)
+    )
 
     # Phase 6 — the API of the teacher's spec
     api_keys: str = ""  # comma-separated bearer keys; one per tester

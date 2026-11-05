@@ -127,6 +127,14 @@ def test_find_quote_rejects_tiny_quotes() -> None:
     assert find_quote(CONTEXTS[0], "kun") is None
 
 
+def test_quote_spanning_two_paragraphs_is_found() -> None:
+    quote = "yigirma bir kalendar kun etib beriladi. Taʼtil ish yili davomida"
+    text, qism, elem_id = find_quote(CONTEXTS[0], quote)
+    assert text == quote
+    assert (qism, elem_id) == (1, 100)  # the paragraph where the quote starts
+    assert find_quote(CONTEXTS[0], "beriladi. Taʼtil ish yili tugagach") is None
+
+
 def test_format_contexts_numbers_excerpts_and_parts() -> None:
     text = format_contexts(CONTEXTS)
     assert text.startswith("[1] Mehnat kodeksi — 134-modda. Yillik taʼtil (edition of 2026-01-01)")

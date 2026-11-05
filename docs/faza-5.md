@@ -1,21 +1,27 @@
 # Faza 5: ustozning testini o'zimizda takrorlash
 
-Ustozning testi o'zimizda aynan takrorlandi: o'sha formatdagi 100 savol, o'sha tartibda yuborilgan 10 ta batch, 6-bo'limdagi o'sha metrikalar. Birinchi to'liq run'da (`eval-2026-11-06`) **12 metrikadan 9 tasi** maqsadga yetdi.
+Ustozning testi o'zimizda aynan takrorlandi: o'sha formatdagi 100 savol, o'sha tartibda yuborilgan 10 ta batch, 6-bo'limdagi o'sha metrikalar. Test uch marta o'tkazildi: har bir tuzatishdan keyin bittadan. Yakuniy run'da (C) **12 metrikadan 9 tasi** maqsadga yetdi.
 
-| Qatlam | Metrika | Natija | Maqsad | |
-|---|---|---|---|---|
-| Retrieval | Hit@5 (hujjat) | 94,4% | ≥ 90% | ✅ |
-| Retrieval | Hit@5 (modda) | 86,7% | ≥ 80% | ✅ |
-| Retrieval | MRR | 0,727 | ≥ 0,70 | ✅ |
-| Retrieval | Context precision | 41,4% | ≥ 60% | ❌ |
-| Generatsiya | Answer correctness | 1,69 | ≥ 1,6 | ✅ |
-| Generatsiya | Faithfulness | 97,2% | ≥ 95% | ✅ |
-| Manba | Citation accuracy | 81,2% | ≥ 90% | ❌ (prompt tuzatildi, quyida) |
-| Manba | To'qilgan manba | 0 | 0 | ✅ |
-| Manba | Eskirgan norma | 0 | 0 | ✅ |
-| Xavfsizlik | No-answer | 9/10 | ≥ 9/10 | ✅ |
-| Operatsion | Latency p50 / p95 | 6,0 s / 10,9 s | ≤ 5 s / ≤ 12 s | ❌ / ✅ |
-| Operatsion | Xato ulushi | 0% | ≤ 2% | ✅ |
+| Qatlam | Metrika | Run A | Run B | **Run C** | Maqsad | |
+|---|---|---|---|---|---|---|
+| Retrieval | Hit@5 (hujjat) | 94,4% | 93,3% | **94,4%** | ≥ 90% | ✅ |
+| Retrieval | Hit@5 (modda) | 86,7% | 85,6% | **86,7%** | ≥ 80% | ✅ |
+| Retrieval | MRR | 0,727 | 0,724 | **0,735** | ≥ 0,70 | ✅ |
+| Retrieval | Context precision | 41,4% | 40,5% | **39,5%** | ≥ 60% | ❌ |
+| Generatsiya | Answer correctness | 1,69 | 1,61 | **1,71** | ≥ 1,6 | ✅ |
+| Generatsiya | Faithfulness | 97,2% | 97,8% | **97,0%** | ≥ 95% | ✅ |
+| Manba | Citation accuracy | 81,2% | 85,0% | **83,6%** | ≥ 90% | ❌ |
+| Manba | To'qilgan manba | 0 | 0 | **0** | 0 | ✅ |
+| Manba | Eskirgan norma | 0 | 0 | **0** | 0 | ✅ |
+| Xavfsizlik | No-answer | 9/10 | 9/10 | **9/10** | ≥ 9/10 | ✅ |
+| Operatsion | Latency p50 / p95 | 6,0 / 10,9 s | 6,1 / 12,7 s | **6,2 / 11,1 s** | ≤ 5 / ≤ 12 s | ❌ / ✅ |
+| Operatsion | Xato ulushi | 0% | 0% | **0%** | ≤ 2% | ✅ |
+
+Run'lar orasidagi o'zgarishlar:
+- **A → B:** iqtiboslar uchun prompt kuchaytirildi: bitta gapda bitta qoida, iqtibosda qoidaning o'zi bo'lishi kerak. Citation accuracy ko'tarildi. Lekin javobi bor 7 ta savol rad etildi (A da 4 ta edi) va to'g'rilik pasaydi.
+- **B → C:** sababi topildi. Bu bizning tekshiruvimizdagi xato edi. Model ikki paragrafni qamrab olgan iqtibos keltirgan, `find_quote` esa uni har bir paragraf ichida alohida qidirgan va to'g'ri iqtiboslarni rad etgan. Tuzatilgach rad etishlar yana 4 taga tushdi, to'g'rilik esa eng yuqori qiymatga (1,71) chiqdi.
+
+Bir xil tizimning ikki run'i orasida ham hakam baholaydigan metrikalar ±2–3 punkt farq qiladi. Sabab: LLM javobi va hakam bahosi har safar biroz o'zgaradi. Shuning uchun citation accuracy'dagi 81–85% oralig'ini bitta raqam deb emas, diapazon deb o'qing.
 
 **Bu raqamlarni qanday o'qish kerak.** Savollarni LLM moddalarning o'zidan yozgan. Unga moddaning so'zlarini takrorlamaslik buyurilgan, baribir bunday savollar odam yozgan savollardan osonroq. Shuning uchun natijani **yuqori chegara** deb o'qing. Javob to'g'riligi, faithfulness, citation accuracy va context precision'ni LLM-hakam baholaydi. Hakam ham `gpt-6-luna`, ya'ni javob bergan model bilan bir xil, shuning uchun o'z javobiga yumshoqroq baho berishi mumkin.
 
@@ -61,23 +67,27 @@ Eng zaif joy ko'p moddali savollar. Ikkala kerakli modda top-5 ga birga faqat uc
 
 **Context precision 41%.** Savolga odatda bitta modda javob beradi, biz esa 5 ta kontekst qaytaramiz. Ideal tizimda ham bunda precision past chiqadi. Saqlangan natijalar ustida kesishni oflayn sinab ko'rdim, ya'ni reranker bahosi past kontekstlarni tashlab yuborishni. 60% ga yetish uchun shunchalik qattiq kesish kerak bo'ldiki, Hit@5 81% ga tushdi va LLM hozir iqtibos qilayotgan 23 ta kontekst yo'qoldi. Bu metrikani sun'iy ko'tarish bo'lardi, javoblar esa yomonlashardi. Shuning uchun kesmadim. Ustozning o'zi chegaralarni "birinchi run uchun taklif" deb yozgan.
 
-**Citation accuracy 81%.** Ikki sabab topildi:
+**Citation accuracy 81–85%.** Ikki sabab topildi:
 1. Bitta gapda bir nechta da'vo bor, iqtibos esa faqat bittasini tasdiqlaydi.
 2. `[1]` belgisi gap boshida turibdi.
 
-Prompt tuzatildi: bitta gapda bitta qoida bo'lishi, iqtibosda raqam, organ yoki shartning o'zi bo'lishi va belgining gap oxirida turishi talab qilinadi. Muammoli 20 ta savolda natija 45% dan **73%** ga ko'tarildi. To'liq qayta sinov hali qilinmagan.
+Prompt tuzatildi. Muammoli 20 ta savolda natija 45% dan 73% ga ko'tarildi, butun testda esa 81% dan 84–85% ga. 90% ga yetishning keyingi yo'li: hakam va javob beruvchi model sifatida kuchliroq model ishlatish yoki har bir da'voni alohida tekshirish. Ikkalasi ham qo'shimcha xarajat talab qiladi.
 
 **Latency p50 6,0 s.** Bunda 4 ta savol parallel ishlanadi va OpenRouter tarmog'ining tebranishi ±1 s qo'shadi. p95 esa maqsad ichida.
 
-## Xato sabablari (6-bo'lim talabi)
+## Xato sabablari (6-bo'lim talabi, run C)
 
 Har bir noto'g'ri javob bitta sababga yozildi:
 
 | Sabab | Soni | Ma'nosi | Nimani tuzatish kerak |
 |---|---|---|---|
-| retrieval | 12 | To'g'ri modda topilmagan | Qidiruv, chunking |
+| retrieval | 11 | To'g'ri modda topilmagan | Qidiruv, chunking |
 | generatsiya | 10 | Modda topilgan, javob noto'g'ri | Prompt, model |
-| manba | 11 | Javob to'g'ri, iqtibos noto'g'ri | Iqtibos qoidalari (tuzatildi) |
+| manba | 10 | Javob to'g'ri, iqtibos noto'g'ri | Iqtibos qoidalari |
+
+## Sinab ko'rilgan va rad etilgan g'oya: qo'shni moddalar
+
+Ko'p moddali savollarda ko'pincha juftlikning bittasi topiladi, qo'shnisi esa topilmaydi (67-modda bor, 68 yo'q). G'oya shunday edi: yuqori nomzodlarning qo'shni moddalarini ham reranker'ga berish. Natija: ko'p moddali savollarda +1 (6/15), umumiy Hit@5 da −1, qidiruv esa ~1 soniya sekinlashdi. Foydasi yo'q, shuning uchun standart holatda o'chirilgan (`LEXRAG_NEIGHBOURS_OF=0`). Kod va testi qoldi.
 
 ## Ustoz so'rashi mumkin
 
@@ -85,8 +95,10 @@ Har bir noto'g'ri javob bitta sababga yozildi:
 
 **Javob to'g'riligini kim baholadi?** LLM-hakam. U kutilgan javob bilan solishtirib 0, 1 yoki 2 baho qo'yadi. Cheklov: hakam javob bergan model bilan bir xil. Kuchliroq hakam modeli bizning budjetga sig'madi.
 
-**Eng katta zaiflik nima?** Ko'p moddali savollar: to'g'rilik 1,33. Ikkala modda top-5 ga birga faqat 33% hollarda kiradi.
+**Eng katta zaiflik nima?** Ko'p moddali savollar: to'g'rilik 1,33. Ikkala modda top-5 ga birga faqat 33% hollarda kiradi. Qo'shni moddalarni qo'shish sinab ko'rildi, lekin yordam bermadi.
+
+**Natijalar barqarormi?** Retrieval metrikalari deyarli bir xil chiqadi, chunki qidiruv deterministik. Hakam baholaydigan metrikalar run'dan run'ga ±2–3 punkt tebranadi, shuning uchun uchta run qilindi.
 
 **Context precision nega past?** Savolga bitta modda javob berganda 5 ta kontekst ichida precision tabiiy ravishda past bo'ladi. Uni kontekstlarni kesib ko'tarish mumkin, lekin bu Hit@5 ni pasaytiradi va javob sifatini yomonlashtiradi. Raqamlar yuqorida.
 
-**Test qancha turdi?** 100 savol ~$0,10, LLM-hakam esa yana ~$0,15.
+**Test qancha turdi?** Bitta to'liq run hakam bilan birga ~$0,28: savollarga javob ~$0,10, LLM-hakam ~$0,15–0,18 (hakam "medium" darajada fikrlaydi).

@@ -50,6 +50,7 @@ class RagPipeline:
             conn, self.embedder, self.reranker,
             candidates=settings.retrieval_candidates,
             rerank_candidates=settings.rerank_candidates,
+            neighbours_of=settings.neighbours_of,
         )  # fmt: skip
 
     def close(self) -> None:

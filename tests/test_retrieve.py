@@ -93,3 +93,29 @@ def test_reranker_reorders_and_scores(indexed) -> None:
     r = retriever.search("Mehnat taʼtili", "uz-Latn", 3)
     assert [c.rerank_score for c in r.contexts] == [2.0, 1.0, 0.0]
     assert "rerank_ms" in r.timing_ms
+
+
+class WordReranker:
+    model = "fake/rerank"
+
+    def __init__(self, word: str) -> None:
+        self.word = word
+
+    def scores(self, query: str, documents: Sequence[str]) -> list[float]:
+        return [1.0 if self.word in d else 0.1 for d in documents]
+
+
+def test_next_article_joins_the_rerank_pool(conn, tmp_path: Path) -> None:  # noqa: F811
+    doc = doc_with(
+        unit(0, "150", "Mehnat daʼvo muddati uch yil."),
+        unit(1, "151", "Maxsus muddatlar boshqacha boʻlishi mumkin."),  # no shared word
+        unit(2, "152", "Boshqa qoida."),
+    )
+    run(conn, store(tmp_path, doc), [-100], KeywordEmbedder())
+    plain = Retriever(conn, KeywordEmbedder(), WordReranker("Maxsus"), candidates=1,
+                      neighbours_of=0)  # fmt: skip
+    assert [c.article for c in plain.search("mehnat", "uz-Latn", 2).contexts] == ["150-modda"]
+    near = Retriever(conn, KeywordEmbedder(), WordReranker("Maxsus"), candidates=1)
+    top = near.search("mehnat", "uz-Latn", 2).contexts
+    assert top[0].article == "151-modda" and top[0].neighbour
+    assert {c.article for c in top} == {"150-modda", "151-modda"}

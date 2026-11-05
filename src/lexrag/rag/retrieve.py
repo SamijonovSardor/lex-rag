@@ -60,6 +60,8 @@ class Context:
     rrf: float = 0.0
     rerank_score: float | None = None
     aliases: list[int] = field(default_factory=list)  # every lex.uz id of the act
+    unit_position: int = -1
+    neighbour: bool = False  # added as the article next to a top candidate
 
     @property
     def text(self) -> str:
@@ -92,9 +94,18 @@ def rrf(*rankings: list[str]) -> dict[str, float]:
 _DETAILS_SQL = """
 SELECT c.chunk_id, c.doc_id, d.lex_id, d.title, d.doc_type, d.url, d.source_url,
        d.edition_date, d.doc_status, c.article, c.article_title, c.heading, c.paragraphs,
-       c.amendments, 1 - (c.embedding <=> %(v)s) AS similarity, d.aliases
+       c.amendments, 1 - (c.embedding <=> %(v)s) AS similarity, d.aliases, c.unit_position
 FROM chunks c JOIN documents d USING (doc_id)
 WHERE c.chunk_id = ANY(%(ids)s)
+"""
+
+# The articles right before and after a chunk, same act (first piece of each).
+_NEIGHBOURS_SQL = """
+SELECT DISTINCT n.chunk_id
+FROM chunks c JOIN chunks n
+  ON n.doc_id = c.doc_id AND n.piece = 1 AND n.kind = 'article'
+ AND n.unit_position IN (c.unit_position - 1, c.unit_position + 1)
+WHERE c.chunk_id = ANY(%s)
 """
 
 
@@ -107,12 +118,17 @@ class Retriever:
         *,
         candidates: int = 50,
         rerank_candidates: int = 30,
+        neighbours_of: int = 8,
     ) -> None:
         self.conn = conn
         self.embedder = embedder
         self.reranker = reranker
         self.candidates = candidates
         self.rerank_candidates = rerank_candidates
+        # Rules often continue in the next article (150: general limitation period, 151:
+        # special periods). The articles next to the top `neighbours_of` candidates join the
+        # reranker's pool; the reranker decides whether they earn a top-k place.
+        self.neighbours_of = neighbours_of
         # HNSW returns at most ef_search rows (default 40): raise it above `candidates`.
         conn.execute(f"SET hnsw.ef_search = {max(100, 2 * candidates)}")
 
@@ -150,16 +166,26 @@ class Retriever:
         )
         fused = rrf(by_vector, by_text)
         order = sorted(fused, key=lambda k: -fused[k])
-        details = {row[0]: row for row in self.conn.execute(_DETAILS_SQL, {"v": vec, "ids": order})}
+        extra: list[str] = []
+        if self.reranker and self.neighbours_of:
+            near = self.conn.execute(_NEIGHBOURS_SQL, (order[: self.neighbours_of],)).fetchall()
+            head_ids = set(order[: self.rerank_candidates])
+            extra = sorted({r[0] for r in near} - head_ids)
+        details = {
+            row[0]: row for row in self.conn.execute(_DETAILS_SQL, {"v": vec, "ids": order + extra})
+        }
         timing["search_ms"] = _ms(t)
 
         v_rank = {k: i for i, k in enumerate(by_vector, start=1)}
         t_rank = {k: i for i, k in enumerate(by_text, start=1)}
         contexts = [_context(details[k], v_rank.get(k), t_rank.get(k), fused[k]) for k in order]
+        neighbours = [_context(details[k], None, None, 0.0) for k in extra]
+        for c in neighbours:
+            c.neighbour = True
 
         if self.reranker and contexts:
             t = time.perf_counter()
-            head = contexts[: self.rerank_candidates]
+            head = contexts[: self.rerank_candidates] + neighbours
             try:
                 scores = self.reranker.scores(
                     q, [f"{c.doc_title}\n{c.heading}\n{c.text}"[:6000] for c in head]
@@ -175,13 +201,17 @@ class Retriever:
 
         timing["retrieval_ms"] = _ms(t0)
         return Retrieval(
-            query=q, contexts=contexts[:top_k], retrieved_total=len(order), timing_ms=timing
+            query=q,
+            contexts=contexts[:top_k],
+            retrieved_total=len(order) + len(extra),
+            timing_ms=timing,
         )
 
 
 def _context(row: tuple, v_rank: int | None, t_rank: int | None, score: float) -> Context:
     (chunk_id, doc_id, lex_id, title, doc_type, url, source_url, edition, status, article,
-     article_title, heading, paragraphs, amendments, similarity, aliases) = row  # fmt: skip
+     article_title, heading, paragraphs, amendments, similarity, aliases,
+     unit_position) = row  # fmt: skip
     return Context(
         chunk_id=chunk_id,
         doc_id=doc_id,
@@ -202,6 +232,7 @@ def _context(row: tuple, v_rank: int | None, t_rank: int | None, score: float) -
         text_rank=t_rank,
         rrf=score,
         aliases=list(aliases),
+        unit_position=unit_position,
     )
 
 

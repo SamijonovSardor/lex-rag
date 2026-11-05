@@ -131,13 +131,24 @@ def find_quote(context: Context, quote: str) -> tuple[str, int, int] | None:
     q = _norm(quote).strip(_STRIP)
     if len(q) < 8:
         return None
-    for p in context.paragraphs:
-        hay = _norm(p.text)
+    norms = [_norm(p.text) for p in context.paragraphs]
+    aligned = all(len(n) == len(p.text) for n, p in zip(norms, context.paragraphs, strict=True))
+    for p, hay in zip(context.paragraphs, norms, strict=True):
         i = hay.find(q)
-        if i >= 0 and len(hay) == len(p.text):  # normalization kept offsets: cut the source
-            return p.text[i : i + len(q)], p.qism, p.elem_id
-        if i >= 0:
-            return quote.strip(_STRIP), p.qism, p.elem_id
+        if i >= 0:  # if normalization kept offsets, cut the source's own characters
+            return (p.text[i : i + len(q)] if aligned else quote.strip(_STRIP)), p.qism, p.elem_id
+    # A quote may run over several paragraphs (a rule and its list of bands, a table): the
+    # run-1 test lost 4 correct answers until this search was added.
+    joined = " ".join(norms)
+    i = joined.find(q)
+    if i < 0:
+        return None
+    start = 0
+    for p, hay in zip(context.paragraphs, norms, strict=True):
+        if i < start + len(hay) + 1:
+            source = " ".join(x.text for x in context.paragraphs)[i : i + len(q)]
+            return (source if aligned else quote.strip(_STRIP)), p.qism, p.elem_id
+        start += len(hay) + 1
     return None
 
 

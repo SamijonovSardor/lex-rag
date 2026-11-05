@@ -9,6 +9,7 @@ A context matches the expected act through `aliases`, so the id form does not ma
 """
 
 import argparse
+import csv
 import json
 import statistics
 import sys
@@ -23,7 +24,7 @@ from lexrag.text.lang import detect_language
 
 def evaluate(rag: RagPipeline, rows: list[dict], k: int, aliases_of: dict[int, set[int]]):
     per_lang: dict[str, list[tuple[bool, bool, float]]] = defaultdict(list)
-    misses, ms = [], []
+    misses, ms, multi = [], [], []
     for row in rows:
         lang = row["language"] or detect_language(row["question"])
         r, _ = rag.retrieve(row["question"], lang, k)
@@ -36,10 +37,15 @@ def evaluate(rag: RagPipeline, rows: list[dict], k: int, aliases_of: dict[int, s
             (
                 i
                 for i, c in enumerate(r.contexts, 1)
-                if aliases_of[c.doc_id] & expected and c.article == row["expected_article"]
+                if aliases_of[c.doc_id] & expected
+                and c.article in row["expected_article"].split(";")
             ),
             None,
         )
+        arts = row["expected_article"].split(";")
+        if len(arts) > 1:
+            found = {c.article for c in r.contexts if aliases_of[c.doc_id] & expected}
+            multi.append(all(a in found for a in arts))
         per_lang[lang].append(
             (rank_doc is not None, rank_art is not None, 1 / rank_art if rank_art else 0.0)
         )
@@ -47,6 +53,10 @@ def evaluate(rag: RagPipeline, rows: list[dict], k: int, aliases_of: dict[int, s
             got = ", ".join(f"{c.doc_title[:28]}/{c.article}" for c in r.contexts[:3])
             want = f"{row['doc_title'][:35]}/{row['expected_article']}"
             misses.append(f"  {row['id']} {lang:<7} want {want}  got: {got}")
+    if multi:
+        print(
+            f"  multi-article questions: all expected articles in top-k {sum(multi)}/{len(multi)}"
+        )
     return per_lang, misses, ms
 
 
@@ -78,11 +88,23 @@ def main() -> int:
     args = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
 
-    rows = [json.loads(x) for x in args.path.read_text(encoding="utf-8").splitlines() if x]
-    rows = [r for r in rows if r["answerable"]]
     s = get_settings()
     with db.connect(s.database_url) as conn:
         aliases_of = {d: set(a) for d, a in conn.execute("SELECT doc_id, aliases FROM documents")}
+        if args.path.suffix == ".csv":  # the teacher-format test set
+            by_lex = {
+                f"lex:{lex}": a for lex, a in conn.execute("SELECT lex_id, aliases FROM documents")
+            }
+            rows = [
+                {"id": r["id"], "language": r["language"], "question": r["question"],
+                 "expected_aliases": by_lex[r["expected_doc_id"]],
+                 "expected_article": r["expected_article"], "doc_title": r["expected_doc_id"]}
+                for r in csv.DictReader(args.path.open(encoding="utf-8"))
+                if r["answerable"] == "true"
+            ]  # fmt: skip
+        else:
+            rows = [json.loads(x) for x in args.path.read_text(encoding="utf-8").splitlines() if x]
+            rows = [r for r in rows if r["answerable"]]
         for config in args.rerank or [""]:
             rag = RagPipeline(conn, s.model_copy(update={"rerank_model": config}))
             per_lang, misses, ms = evaluate(rag, rows, args.k, aliases_of)
