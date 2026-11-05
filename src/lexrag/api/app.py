@@ -312,6 +312,13 @@ def post_query(req: QueryRequest, request: Request, _: str = Depends(api_key)) -
     return Utf8JSON(content={"system": runtime.system().model_dump(mode="json"), "result": result})
 
 
+@app.get("/")
+def root() -> Utf8JSON:
+    """No database, no API key: a keep-alive ping that lets the database sleep (Neon's
+    free compute hours only run while Postgres is awake)."""
+    return Utf8JSON(content={"service": "lex-rag", "docs": "/docs", "health": "/v1/health"})
+
+
 @app.get("/v1/meta")
 def meta(request: Request) -> Utf8JSON:
     runtime = rt(request)

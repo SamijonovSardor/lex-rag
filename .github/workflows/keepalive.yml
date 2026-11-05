@@ -1,0 +1,18 @@
+# Render's free web service sleeps after 15 minutes without traffic and needs about a
+# minute to wake: a tester's first batch would wait or fail. Ping the root endpoint, which
+# touches neither the database (Neon keeps sleeping, saving its free compute hours) nor
+# OpenRouter (no cost). Set the repository variable LEXRAG_URL to the Render URL.
+name: keep-alive
+
+on:
+  schedule:
+    - cron: "*/5 * * * *" # GitHub may delay scheduled runs; 5 min keeps us under 15
+  workflow_dispatch:
+
+jobs:
+  ping:
+    if: ${{ vars.LEXRAG_URL != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - run: curl --fail --silent --show-error --max-time 120 "${{ vars.LEXRAG_URL }}/"

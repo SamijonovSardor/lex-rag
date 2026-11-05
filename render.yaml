@@ -1,0 +1,18 @@
+# Render Blueprint: New → Blueprint → pick this repository.
+# Secrets are entered in the Render dashboard (sync: false), never committed.
+services:
+  - type: web
+    name: lex-rag
+    runtime: docker
+    plan: free
+    region: frankfurt
+    healthCheckPath: /
+    envVars:
+      - key: LEXRAG_DATABASE_URL # Neon connection string (pooled, sslmode=require)
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: LEXRAG_API_KEYS # comma-separated bearer keys, one per tester
+        sync: false
+      - key: LEXRAG_API_WORKERS
+        value: "4"

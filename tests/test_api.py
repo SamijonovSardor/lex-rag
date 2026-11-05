@@ -232,3 +232,8 @@ def test_uzbek_letters_survive_the_round_trip(client: TestClient) -> None:
     raw = client.post("/v1/rag/batch", json=body, headers=AUTH).content.decode("utf-8")
     assert question in raw  # sent back unescaped, okina and tutuq intact (debug echo)
     assert "taʼtil" in raw
+
+
+def test_root_needs_no_key_and_no_database(client: TestClient) -> None:
+    r = client.get("/")
+    assert r.status_code == 200 and r.json()["service"] == "lex-rag"
