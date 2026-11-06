@@ -70,7 +70,12 @@ docker compose --profile airflow run --rm airflow airflow dags test lexrag_daily
 
 Airflow standart holatda lokal indeksni yangilaydi. Production'dagi Neon indeksini yangilash uchun `.env` ga `LEXRAG_AIRFLOW_DATABASE_URL=<Neon URL>` qo'shiladi.
 
-**Cheklov:** bepul infratuzilmada Airflow'ni 24/7 ushlab turadigan joy yo'q. Airflow kompyuterda yoqilgan paytda ishlaydi.
+**Cheklov:** bepul infratuzilmada Airflow'ni 24/7 ushlab turadigan joy yo'q. Airflow kompyuterda yoqilgan paytda ishlaydi. Tejamkor sozlamalar bilan (`PARALLELISM=2`, API uchun 1 worker) u ~1 GB RAM oladi.
+
+## Sinov natijalari (2026-11-06, Airflow 3.3.2)
+
+1. **Haqiqiy kunlik yangilanish.** RSS'dagi o'zgartiruvchi qonunlar 24 ta hujjatimizni ko'rsatdi va ular qayta yuklandi. Matni haqiqatan o'zgargani bittasi chiqdi: Jinoyat kodeksining **244¹, 244² va 246-moddalari**. 424 ta chunk'dan 3 tasi qayta embedding qilindi, yangilanish production'ga (Neon) chiqarildi va `index_version` `lex-idx-2026-11-06` bo'ldi.
+2. **Avtomatik zanjir.** Scheduler `lexrag_daily` ni jadval bo'yicha ishga tushirdi. `lexrag_parse` va `lexrag_index` run'lari `asset_triggered__…` ID bilan, hech kim qo'lda tegmasdan ishga tushdi va ikkalasi ham `success` bilan tugadi.
 
 ## Ustoz so'rashi mumkin
 

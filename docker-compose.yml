@@ -39,7 +39,10 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "true"  # local only: no login page
-      AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: "30"
+      AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: "30"
+      # lean: a laptop with little free RAM; four DAGs need no more
+      AIRFLOW__CORE__PARALLELISM: "2"
+      AIRFLOW__API__WORKERS: "1"
       LEXRAG_DATA_DIR: /opt/airflow/lexrag-data
       # the index the DAGs update; point it at Neon to update production
       LEXRAG_DATABASE_URL: ${LEXRAG_AIRFLOW_DATABASE_URL:-postgresql://lexrag:lexrag@db:5432/lexrag}
