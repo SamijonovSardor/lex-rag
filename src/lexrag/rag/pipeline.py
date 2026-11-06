@@ -4,8 +4,10 @@ Errors stay inside the item (status "error" + code), so one failing question nev
 the other questions of a batch (the teacher's spec, section 5).
 """
 
+import contextlib
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -41,8 +43,18 @@ class ItemResult:
 
 
 class RagPipeline:
-    def __init__(self, conn: psycopg.Connection, settings: Settings) -> None:
+    def __init__(
+        self,
+        conn: psycopg.Connection,
+        settings: Settings,
+        *,
+        connect: Callable[[], psycopg.Connection] | None = None,
+    ) -> None:
+        """`connect` lets a long-lived pipeline (one per API worker thread) replace a dead
+        connection: Neon's free compute sleeps after 5 idle minutes and closes every
+        connection, so the first question after a pause would otherwise fail."""
         self.settings = settings
+        self._connect = connect
         self.embedder = OpenRouterEmbedder(settings)
         self.reranker = OpenRouterReranker(settings) if settings.rerank_model else None
         self.llm = OpenRouterLLM(settings)
@@ -52,6 +64,20 @@ class RagPipeline:
             rerank_candidates=settings.rerank_candidates,
             neighbours_of=settings.neighbours_of,
         )  # fmt: skip
+
+    def ensure_connection(self) -> None:
+        conn = self.retriever.conn
+        try:
+            if conn.closed:
+                raise psycopg.OperationalError("connection is closed")
+            conn.execute("SELECT 1")
+        except psycopg.Error:
+            if self._connect is None:
+                raise
+            log.warning("database connection lost (idle database went to sleep?); reconnecting")
+            with contextlib.suppress(psycopg.Error):
+                conn.close()
+            self.retriever.use(self._connect())
 
     def close(self) -> None:
         self.embedder.close()
@@ -96,6 +122,7 @@ class RagPipeline:
         out_lang: Language = answer_language if answer_language in LANGUAGES else lang  # type: ignore[assignment]
         result = ItemResult(id=item_id, status="ok", language=lang)
         try:
+            self.ensure_connection()
             result.retrieval, (tin, tout) = self.retrieve(question, lang, top_k, seed)
             t = time.perf_counter()
             result.answer = generate(

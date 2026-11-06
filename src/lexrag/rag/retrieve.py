@@ -129,8 +129,13 @@ class Retriever:
         # special periods). The articles next to the top `neighbours_of` candidates join the
         # reranker's pool; the reranker decides whether they earn a top-k place.
         self.neighbours_of = neighbours_of
+        self.use(conn)
+
+    def use(self, conn: psycopg.Connection) -> None:
+        """Search through `conn` (also after a reconnect: session settings are per connection)."""
+        self.conn = conn
         # HNSW returns at most ef_search rows (default 40): raise it above `candidates`.
-        conn.execute(f"SET hnsw.ef_search = {max(100, 2 * candidates)}")
+        conn.execute(f"SET hnsw.ef_search = {max(100, 2 * self.candidates)}")
 
     def search(
         self, question: str, language: Language, top_k: int = 5, *, query: str | None = None

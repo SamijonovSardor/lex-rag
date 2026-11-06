@@ -69,7 +69,12 @@ class Runtime:
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self.pool = ConnectionPool(settings.database_url, min_size=1, max_size=4, open=True)
+        # check: test each connection before handing it out — Neon closes them all when its
+        # compute sleeps, and a dead one would turn /v1/health or a batch into an error.
+        self.pool = ConnectionPool(
+            settings.database_url, min_size=1, max_size=4, open=True,
+            check=ConnectionPool.check_connection,
+        )  # fmt: skip
         self.store = BatchStore(self.pool)
         abandoned = self.store.fail_abandoned()
         if abandoned:
@@ -87,7 +92,8 @@ class Runtime:
     def pipeline(self) -> RagPipeline:
         p = getattr(self._local, "pipeline", None)
         if p is None:
-            p = RagPipeline(db.connect(self.settings.database_url), self.settings)
+            url = self.settings.database_url
+            p = RagPipeline(db.connect(url), self.settings, connect=lambda: db.connect(url))
             self._local.pipeline = p
             with self._lock:
                 self._pipelines.append(p)

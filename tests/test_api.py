@@ -3,6 +3,7 @@
 Needs the Postgres of `docker compose up -d db`; works in a throwaway schema.
 """
 
+import contextlib
 import threading
 import time
 import uuid
@@ -84,9 +85,11 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     try:
         with TestClient(api.app) as c:
             yield c
-    finally:
-        conn.execute(f"DROP SCHEMA {schema} CASCADE")
-        conn.close()
+    finally:  # a fresh connection: a test may have terminated the fixture's own
+        with db.connect(BASE_URL, timeout_s=3) as admin:
+            admin.execute(f"DROP SCHEMA {schema} CASCADE")
+        with contextlib.suppress(psycopg.Error):
+            conn.close()
 
 
 def batch(batch_id: str = "run-b01", n: int = 2, **over) -> dict:
@@ -237,3 +240,15 @@ def test_uzbek_letters_survive_the_round_trip(client: TestClient) -> None:
 def test_root_needs_no_key_and_no_database(client: TestClient) -> None:
     r = client.get("/")
     assert r.status_code == 200 and r.json()["service"] == "lex-rag"
+
+
+def test_health_survives_the_database_closing_pooled_connections(client: TestClient) -> None:
+    assert client.get("/v1/health").json()["status"] == "degraded"  # the pool has a connection
+    with db.connect(BASE_URL, timeout_s=3) as admin:
+        admin.execute(
+            "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+            "WHERE datname = current_database() AND pid <> pg_backend_pid() "
+            "AND backend_type = 'client backend'"
+        )
+    r = client.get("/v1/health")
+    assert r.json()["status"] == "degraded"  # reconnected; "down" would mean a dead connection
