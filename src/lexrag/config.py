@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     embedding_model: str = "baai/bge-m3"
     embedding_dim: int = 1024
+    # OpenRouter provider routing for the LLM and embeddings: "latency" picks the provider
+    # that answers first (same model, several hosts); empty = OpenRouter's default balancing.
+    provider_sort: str = "latency"
     embed_batch_size: int = 64
     # Which lex.uz id the API reports as `doc_id`: the original act (`uz_cyrl`, the id lex.uz
     # shows without a language prefix) or the Latin variant we index (`uz_latn`, negative).

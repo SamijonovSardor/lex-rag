@@ -44,6 +44,7 @@ class OpenRouterEmbedder:
         if not settings.openrouter_api_key:
             raise EmbeddingError("OPENROUTER_API_KEY is not set (put it in .env)")
         self.model = settings.embedding_model
+        self.provider_sort = settings.provider_sort
         self.dim = settings.embedding_dim
         self.batch_size = settings.embed_batch_size
         self.tokens = 0  # prompt tokens billed so far, for the cost line in the report
@@ -74,7 +75,10 @@ class OpenRouterEmbedder:
         reraise=True,
     )
     def _embed_batch(self, batch: list[str]) -> list[list[float]]:
-        r = self._client.post("/embeddings", json={"model": self.model, "input": batch})
+        body: dict = {"model": self.model, "input": batch}
+        if self.provider_sort:
+            body["provider"] = {"sort": self.provider_sort}
+        r = self._client.post("/embeddings", json=body)
         if r.status_code == 429 or r.status_code >= 500:
             raise _Retryable(f"{r.status_code}: {r.text[:200]}")
         if r.status_code != 200:

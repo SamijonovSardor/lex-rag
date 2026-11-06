@@ -102,3 +102,19 @@ Ko'p moddali savollarda ko'pincha juftlikning bittasi topiladi, qo'shnisi esa to
 **Context precision nega past?** Savolga bitta modda javob berganda 5 ta kontekst ichida precision tabiiy ravishda past bo'ladi. Uni kontekstlarni kesib ko'tarish mumkin, lekin bu Hit@5 ni pasaytiradi va javob sifatini yomonlashtiradi. Raqamlar yuqorida.
 
 **Test qancha turdi?** Bitta to'liq run hakam bilan birga ~$0,28: savollarga javob ~$0,10, LLM-hakam ~$0,15–0,18 (hakam "medium" darajada fikrlaydi).
+
+## Run C'dan keyingi tuzatish (2026-11-06)
+
+Uchta bajarilmagan metrika uchun qilingan o'zgarishlar:
+- **Prompt:** ikki gap bitta iqtibosni bo'lishmaydi, har bir gap o'z iqtibosini oladi. Savolda so'ralmagan qoidalar javobga qo'shilmaydi.
+- **OpenRouter routing:** `provider.sort = "latency"`. Bir xil model bir nechta hostda turadi, endi eng tez javob beradigani tanlanadi.
+- **Parallel qidiruv:** query embedding tarmoqdan kelguncha full-text qidiruv bazada bajarilib turadi.
+
+Pul tejash uchun 100 savollik to'liq test o'rniga 15 ta qiyin savolda tekshirildi:
+- citation accuracy 61% → 90%;
+- LLM javob vaqti 4,0 s → 1,8 s;
+- correctness 1,71 → 1,57: ko'p qismli savollarda javob qisqaroq chiqdi.
+
+Retrieval o'zgarmadi, chunki top-5 aynan bir xil. Kichik to'plamda hakam bahosi ancha tebranadi, aniq raqam uchun to'liq run kerak.
+
+Context precision ataylab o'zgartirilmadi. Spetsifikatsiya uni top-5 bo'yicha o'lchaydi, faqat ishlatilgan kontekstlarni qaytarish esa metrikani aylanib o'tish bo'lardi.

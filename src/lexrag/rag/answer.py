@@ -65,7 +65,8 @@ Rules:
 2. One sentence = one legal rule. If you need two rules, write two sentences. End each \
 such sentence (after its last word, before the period) with a marker like [1]; never put a \
 marker at the start of a sentence. The number is the `ref` of an item in `citations`; use \
-separate markers [1][2], not [1, 2].
+separate markers [1][2], not [1, 2]. Two sentences never share one citation: if both \
+rest on the same excerpt, give each its own citation with its own quote.
 3. Each citation gives the excerpt number in `context` and, in `quote`, an exact contiguous \
 span of that excerpt's text (a sentence or clause, at most 300 characters) that by itself \
 states the rule of the sentence citing it: its number, deadline, body or condition must be \
@@ -75,7 +76,9 @@ meaning; quote the row that states the value.
 4. Copy numbers, amounts, deadlines and terms exactly as the excerpt writes them.
 5. If the excerpts do not answer the question, set no_answer to true, say in one sentence \
 that the provided legislation does not answer it, and return no citations. Do not guess.
-6. The answer must be in {language}. Be concise: one to four sentences in plain language.
+6. The answer must be in {language}. Answer only what the question asks: no background \
+rules, related provisions or other excerpts it does not ask about. Usually one or two \
+sentences in plain language; at most four when the question asks for several items.
 7. confidence: your probability from 0 to 1 that the answer is correct and fully supported.
 """
 

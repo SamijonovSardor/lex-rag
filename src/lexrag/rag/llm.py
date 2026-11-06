@@ -54,6 +54,7 @@ class OpenRouterLLM:
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.model = settings.llm_model
+        self.provider_sort = settings.provider_sort
         self._client = httpx.Client(
             base_url=settings.openrouter_base_url,
             headers={
@@ -97,6 +98,8 @@ class OpenRouterLLM:
         }
         if seed is not None:
             body["seed"] = seed
+        if self.provider_sort:  # require_parameters would filter out every host (404)
+            body["provider"] = {"sort": self.provider_sort}
         if reasoning_effort:  # how long a reasoning model thinks; lower = faster
             body["reasoning"] = {"effort": reasoning_effort}
         try:

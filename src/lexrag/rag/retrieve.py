@@ -12,6 +12,7 @@ Russian questions skip full-text search: the index is Uzbek, so Russian words ne
 import logging
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -25,6 +26,7 @@ from lexrag.text.lang import Language
 from lexrag.text.normalize import normalize_query
 
 log = logging.getLogger(__name__)
+_EMBED_POOL = ThreadPoolExecutor(8, thread_name_prefix="query-embed")
 
 RRF_K = 60
 
@@ -145,17 +147,9 @@ class Retriever:
         timing: dict[str, int] = {}
         t0 = time.perf_counter()
         q = normalize_query(query or question, language if query is None else None)
-        vec = np.asarray(self.embedder.embed([q])[0], dtype=np.float32)
-        timing["embed_ms"] = _ms(t0)
-
-        t = time.perf_counter()
-        by_vector = [
-            r[0]
-            for r in self.conn.execute(
-                "SELECT chunk_id FROM chunks ORDER BY embedding <=> %s LIMIT %s",
-                (vec, self.candidates),
-            )
-        ]
+        # The embedding is a network call (~1 s); the full-text search needs no vector, so it
+        # runs on the database meanwhile.
+        pending = _EMBED_POOL.submit(self.embedder.embed, [q])
         fts = fulltext_query(q) if (query or language != "ru") else ""
         by_text = (
             [
@@ -169,6 +163,17 @@ class Retriever:
             if fts
             else []
         )
+        vec = np.asarray(pending.result()[0], dtype=np.float32)
+        timing["embed_ms"] = _ms(t0)
+
+        t = time.perf_counter()
+        by_vector = [
+            r[0]
+            for r in self.conn.execute(
+                "SELECT chunk_id FROM chunks ORDER BY embedding <=> %s LIMIT %s",
+                (vec, self.candidates),
+            )
+        ]
         fused = rrf(by_vector, by_text)
         order = sorted(fused, key=lambda k: -fused[k])
         extra: list[str] = []
