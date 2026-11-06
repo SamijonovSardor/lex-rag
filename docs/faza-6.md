@@ -77,3 +77,5 @@ Tester ID'ni boshqa variantdan olgan bo'lsa ham moslay olishi uchun, har bir iqt
 **`o'` va `g'` buzilmaydimi?** Hammasi UTF-8 da ishlaydi va `Content-Type: application/json; charset=utf-8` bilan qaytadi. Javobdagi JSON o'zbekcha harflarni `ʻ` ko'rinishiga o'tkazmaydi. Bu test bilan tekshirilgan.
 
 **Iqtibos kontekstlar ichida bo'lishi qanday kafolatlanadi?** Iqtibos faqat LLM'ga yuborilgan kontekstlardan olinadi, ularning har biri `contexts` ro'yxatida qaytadi. Tizim ko'rmagan manbaga havola berib bo'lmaydi: bunday iqtibos tekshiruvda tashlab yuboriladi (Faza 4).
+
+**Baza uxlab qolsa nima bo'ladi?** Neon'ning bepul tarifi 5 daqiqa so'rov kelmasa uxlaydi va ulanishlarni yopadi. API har bir savoldan oldin ulanishni tekshiradi va kerak bo'lsa qaytadan ulanadi, shuning uchun savol xato bermaydi, faqat ~0,5–2 s sekinroq bo'ladi. Bu xato deploy'dan keyin haqiqatan uchradi va tuzatildi (`docs/deploy.md`).

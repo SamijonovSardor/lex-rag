@@ -51,3 +51,22 @@ GitHub repo → Settings → Secrets and variables → Actions → **Variables**
 - Bepul Render 0,1 CPU'da ishlaydi, shuning uchun bitta savol lokaldagidan 1–3 soniya sekinroq javob olishi mumkin.
 - Ping kechiksa, Render uxlab qolishi mumkin. Unda birinchi so'rov ~1 daqiqa kutadi, keyingilari tez ishlaydi.
 - OpenRouter kalitining limiti $1,50. 100 savollik test taxminan $0,10 turadi.
+
+## Holat (2026-11-06)
+
+- API: https://lex-rag-mdca.onrender.com, hujjatlar sahifasi `/docs`. Indeks Neon'da: 385 hujjat, 20 789 chunk, 353 MB.
+- Ping: GitHub Actions `keep-alive`, `LEXRAG_URL` repository variable orqali ishlaydi. Birinchi ishga tushirish muvaffaqiyatli o'tdi.
+- Internet orqali sinov: 4 savollik batch 11,5 s. Bir xil batch qayta yuborilganda 0,5 s (saqlangan natija). Ikkala kalit ham qabul qilinadi, noto'g'ri kalit 403, kalitsiz so'rov 401.
+
+### Deploy'dan keyin topilgan xato: Neon uxlaganda ulanishlar uziladi
+
+Deploy'dan bir necha daqiqa o'tib `/v1/health` 503 qaytardi: `terminating connection due to administrator command`. Neon'ning bepul hisoblash qismi 5 daqiqa so'rov kelmasa uxlaydi va **barcha ochiq ulanishlarni yopadi**. API esa yopilgan ulanishni qayta ishlatmoqchi bo'lgan. Ustozning testida bu tanaffusdan keyingi birinchi batch'dagi barcha savollarni `RETRIEVAL_FAILED` qilardi.
+
+Ping bu muammoni hal qilmaydi, chunki u ataylab bazaga tegmaydi. Agar ping bazani ham uyg'oq ushlasa, Neon'ning oyiga 100 CU-soatlik bepul hisoblash vaqti tez tugab qolardi.
+
+Tuzatish (`fc70665`):
+- ulanishlar puli (`ConnectionPool(check=...)`) har bir ulanishni berishdan oldin tekshiradi;
+- har bir ishchi oqimning pipeline'i savoldan oldin `SELECT 1` yuboradi. Ulanish o'lik bo'lsa, qaytadan ulanadi va `hnsw.ef_search` sessiya sozlamasini qayta qo'yadi;
+- `tests/test_reconnect.py` ulanishni `pg_terminate_backend` bilan majburan uzib, xuddi shu vaziyatni takrorlaydi.
+
+Narxi: Neon uyg'onishi uchun tanaffusdan keyingi birinchi savolga ~0,5–2 s qo'shiladi.
