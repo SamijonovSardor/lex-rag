@@ -15,7 +15,8 @@ from tenacity import (
     retry,
     retry_if_exception_type,
     stop_after_attempt,
-    wait_exponential_jitter,
+    wait_exponential,
+    wait_random,
 )
 
 from lexrag.config import Settings
@@ -67,7 +68,7 @@ class OpenRouterEmbedder:
 
     @retry(
         retry=retry_if_exception_type((_Retryable, httpx.TransportError)),
-        wait=wait_exponential_jitter(multiplier=2, max=60),
+        wait=wait_exponential(multiplier=2, max=60) + wait_random(0, 1),
         stop=stop_after_attempt(6),
         before_sleep=before_sleep_log(log, logging.WARNING),
         reraise=True,

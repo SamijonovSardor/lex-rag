@@ -22,5 +22,33 @@ services:
       retries: 20
     restart: unless-stopped
 
+  # Phase 3. Off by default (it needs ~1.5 GB RAM):
+  #   docker compose --profile airflow up -d --build     → http://127.0.0.1:8080
+  airflow:
+    profiles: ["airflow"]
+    build:
+      context: .
+      dockerfile: airflow/Dockerfile
+    container_name: lexrag-airflow
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://lexrag:lexrag@db:5432/airflow
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "true"  # local only: no login page
+      AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: "30"
+      LEXRAG_DATA_DIR: /opt/airflow/lexrag-data
+      # the index the DAGs update; point it at Neon to update production
+      LEXRAG_DATABASE_URL: ${LEXRAG_AIRFLOW_DATABASE_URL:-postgresql://lexrag:lexrag@db:5432/lexrag}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./data:/opt/airflow/lexrag-data
+    ports:
+      - "127.0.0.1:8080:8080"
+
 volumes:
   lexrag_pgdata:

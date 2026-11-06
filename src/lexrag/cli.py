@@ -111,6 +111,24 @@ def cmd_index(args: argparse.Namespace) -> int:
     return 0
 
 
+async def cmd_update(args: argparse.Namespace) -> int:
+    from lexrag import update
+
+    s = get_settings()
+    ids = await (update.daily_changes(s) if args.mode == "daily" else update.full_refresh(s))
+    changed = update.parse_changed(s, ids)
+    print(f"{args.mode}: {len(ids)} fetched, {len(changed)} with changed text {changed[:10]}")
+    if args.no_index or not (changed or args.mode == "full"):
+        return 0
+    if args.mode == "full":  # the whole scope: also removes acts that left it
+        report = update.index_changed(s, ids, prune=True)
+    else:
+        report = update.index_changed(s, changed, prune=False)
+    print(f"index: {report.docs_written} written, {report.docs_skipped} unchanged, "
+          f"{report.docs_deleted} deleted, {report.chunks_embedded} chunks embedded")  # fmt: skip
+    return 0
+
+
 def cmd_ask(args: argparse.Namespace) -> int:
     from lexrag.index import db
     from lexrag.rag.pipeline import RagPipeline
@@ -163,6 +181,10 @@ def build_parser() -> argparse.ArgumentParser:
     ix.add_argument("--limit", type=int)
     ix.add_argument("--dry-run", action="store_true", help="chunk and count, no DB or API")
 
+    up = sub.add_parser("update", help="fetch what changed on lex.uz, parse, index")
+    up.add_argument("--mode", choices=["daily", "full"], default="daily")
+    up.add_argument("--no-index", action="store_true", help="stop after parsing")
+
     ask = sub.add_parser("ask", help="answer one question from the index")
     ask.add_argument("question")
     ask.add_argument("--top-k", type=int, default=5)
@@ -185,6 +207,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_index(args)
     if args.cmd == "ask":
         return cmd_ask(args)
+    if args.cmd == "update":
+        return asyncio.run(cmd_update(args))
     return cmd_parse(args)
 
 

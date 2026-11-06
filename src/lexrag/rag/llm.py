@@ -16,7 +16,8 @@ from tenacity import (
     retry,
     retry_if_exception_type,
     stop_after_attempt,
-    wait_exponential_jitter,
+    wait_exponential,
+    wait_random,
 )
 
 from lexrag.config import Settings
@@ -68,7 +69,7 @@ class OpenRouterLLM:
 
     @retry(
         retry=retry_if_exception_type(_Retryable),
-        wait=wait_exponential_jitter(multiplier=1, max=20),
+        wait=wait_exponential(multiplier=1, max=20) + wait_random(0, 1),
         stop=stop_after_attempt(3),
         before_sleep=before_sleep_log(log, logging.WARNING),
         reraise=True,

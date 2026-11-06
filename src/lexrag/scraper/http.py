@@ -11,7 +11,8 @@ from tenacity import (
     before_sleep_log,
     retry_if_exception_type,
     stop_after_attempt,
-    wait_exponential_jitter,
+    wait_exponential,
+    wait_random,
 )
 
 from lexrag.config import Settings, get_settings
@@ -84,7 +85,8 @@ class LexClient:
     async def _request(self, method: str, path: str, **kwargs: object) -> httpx.Response:
         retrying = AsyncRetrying(
             stop=stop_after_attempt(self._settings.max_attempts),
-            wait=wait_exponential_jitter(multiplier=self._settings.retry_initial_wait_s, max=60),
+            wait=wait_exponential(multiplier=self._settings.retry_initial_wait_s, max=60)
+            + wait_random(0, 1),
             retry=retry_if_exception_type((httpx.TransportError, RetryableHTTPError)),
             before_sleep=before_sleep_log(log, logging.WARNING),
             reraise=True,
