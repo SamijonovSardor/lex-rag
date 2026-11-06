@@ -237,9 +237,10 @@ def test_uzbek_letters_survive_the_round_trip(client: TestClient) -> None:
     assert "taʼtil" in raw
 
 
-def test_root_needs_no_key_and_no_database(client: TestClient) -> None:
+def test_root_is_the_web_page_without_key_or_database(client: TestClient) -> None:
     r = client.get("/")
-    assert r.status_code == 200 and r.json()["service"] == "lex-rag"
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/html")
+    assert "<title>lex-rag" in r.text and "/demo/ask" in r.text
 
 
 def test_health_survives_the_database_closing_pooled_connections(client: TestClient) -> None:
@@ -252,3 +253,59 @@ def test_health_survives_the_database_closing_pooled_connections(client: TestCli
         )
     r = client.get("/v1/health")
     assert r.json()["status"] == "degraded"  # reconnected; "down" would mean a dead connection
+
+
+# ---- the public demo page ---------------------------------------------------------------
+
+
+def ask(client: TestClient, question: str = "Taʼtil necha kun?", ip: str = "1.2.3.4"):
+    return client.post(
+        "/demo/ask", json={"question": question}, headers={"X-Forwarded-For": f"9.9.9.9, {ip}"}
+    )
+
+
+@pytest.fixture
+def demo(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    guard = client.app.state.rt.demo
+    monkeypatch.setattr(guard, "budget_left", lambda: 1.0)
+    return client
+
+
+def test_demo_answers_without_a_key(demo: TestClient) -> None:
+    r = ask(demo)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "ok" and body["citations"][0]["article"] == "134-modda"
+    assert body["contexts"][0]["text"]
+
+
+def test_demo_limits_each_ip_per_hour(demo: TestClient) -> None:
+    demo.app.state.rt.demo.settings = demo.app.state.rt.settings.model_copy(
+        update={"demo_per_ip_per_hour": 2}
+    )
+    assert [ask(demo).status_code for _ in range(2)] == [200, 200]
+    r = ask(demo)
+    assert r.status_code == 429 and r.json()["error"]["code"] == "DEMO_RATE_LIMIT"
+    assert ask(demo, ip="5.6.7.8").status_code == 200  # the real (last) IP counts, not 9.9.9.9
+
+
+def test_demo_daily_cap(demo: TestClient) -> None:
+    demo.app.state.rt.demo.settings = demo.app.state.rt.settings.model_copy(
+        update={"demo_per_day": 1}
+    )
+    assert ask(demo).status_code == 200
+    assert ask(demo, ip="5.6.7.8").json()["error"]["code"] == "DEMO_DAILY_LIMIT"
+
+
+def test_demo_pauses_before_it_eats_the_api_budget(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(client.app.state.rt.demo, "budget_left", lambda: 0.05)
+    r = ask(client)
+    assert r.status_code == 503 and r.json()["error"]["code"] == "DEMO_PAUSED"
+    assert FakePipeline.calls == []  # nothing was spent
+
+
+def test_demo_rejects_long_or_empty_questions(demo: TestClient) -> None:
+    assert ask(demo, question="x" * 501).json()["error"]["code"] == "TOO_LONG"
+    assert ask(demo, question="   ").status_code == 400

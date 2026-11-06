@@ -49,6 +49,14 @@ class Settings(BaseSettings):
     batch_sync_timeout_s: float = 110.0  # spec: ≤ 120 s sync, else 202 + GET
     rate_limit_per_s: float = 5.0  # batches per second per key (spec: at least 1)
 
+    # Public demo page (no key). Spends the same OpenRouter balance as the test API, so it
+    # is capped and pauses itself before it can eat the reserve the API needs.
+    demo_enabled: bool = True
+    demo_per_ip_per_hour: int = 10
+    demo_per_day: int = 50
+    demo_min_budget_usd: float = 0.15  # pause the demo below this OpenRouter key balance
+    demo_max_chars: int = 500
+
     @property
     def api_key_set(self) -> set[str]:
         return {k.strip() for k in self.api_keys.split(",") if k.strip()}

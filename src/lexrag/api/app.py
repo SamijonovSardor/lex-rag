@@ -30,6 +30,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from psycopg_pool import ConnectionPool
 
+from lexrag.api.demo import DemoGuard
+from lexrag.api.demo import router as demo_router
 from lexrag.api.schemas import (
     BatchRequest,
     BatchResponse,
@@ -84,6 +86,7 @@ class Runtime:
         self.items = ThreadPoolExecutor(settings.api_workers, thread_name_prefix="item")
         self.batches = ThreadPoolExecutor(4, thread_name_prefix="batch")
         self.running: dict[str, Future] = {}
+        self.demo = DemoGuard(settings)
         self._local = threading.local()
         self._pipelines: list[RagPipeline] = []
         self._hits: dict[str, deque[float]] = defaultdict(deque)
@@ -140,6 +143,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="lex-rag", version=PIPELINE_VERSION, lifespan=lifespan)
+app.include_router(demo_router)  # GET / (the web page) and POST /demo/ask
 
 
 @app.exception_handler(ApiError)
@@ -316,13 +320,6 @@ def post_query(req: QueryRequest, request: Request, _: str = Depends(api_key)) -
     fut = runtime.items.submit(answer_item, runtime, "q", req.question, req.language, req.options)
     result = to_result(fut.result(), req.options).model_dump(mode="json")
     return Utf8JSON(content={"system": runtime.system().model_dump(mode="json"), "result": result})
-
-
-@app.get("/")
-def root() -> Utf8JSON:
-    """No database, no API key: a keep-alive ping that lets the database sleep (Neon's
-    free compute hours only run while Postgres is awake)."""
-    return Utf8JSON(content={"service": "lex-rag", "docs": "/docs", "health": "/v1/health"})
 
 
 @app.get("/v1/meta")

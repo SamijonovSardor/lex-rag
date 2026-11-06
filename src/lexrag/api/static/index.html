@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lex-rag — qonunchilik boʻyicha savol-javob</title>
+<meta name="description" content="Oʻzbekiston qonunchiligi boʻyicha savollarga lex.uz moddalaridan iqtibos bilan javob.">
+<style>
+  :root {
+    --bg: #f7f7f5; --surface: #ffffff; --text: #1c1e21; --muted: #5d636b; --border: #e2e2dd;
+    --accent: #1d5c88; --on-accent: #ffffff; --accent-weak: #e9f1f7;
+    --warn: #7a5200; --warn-bg: #fcf3e1; --err: #9c2b2b; --err-bg: #fbeaea;
+    --mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121417; --surface: #1a1d21; --text: #e7e7e4; --muted: #9ba2ab; --border: #2c3036;
+      --accent: #86b8dc; --on-accent: #0f1b25; --accent-weak: #1b2833;
+      --warn: #e2b55e; --warn-bg: #2a2316; --err: #ef9090; --err-bg: #2d1b1b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 48px 16px 64px; }
+  header h1 { font-size: 1.5rem; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.01em; }
+  header p { margin: 0; color: var(--muted); }
+
+  form { margin-top: 28px; }
+  label.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  textarea {
+    display: block; width: 100%; min-height: 104px; resize: vertical; padding: 12px 14px;
+    font: inherit; color: inherit; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 10px;
+  }
+  textarea:focus-visible, button:focus-visible, a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+  .examples { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    font: inherit; font-size: .875rem; padding: 4px 12px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+  }
+  .chip:hover { color: var(--text); border-color: var(--muted); }
+  .actions { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+  .counter { font-size: .8125rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .submit {
+    font: inherit; font-weight: 600; padding: 9px 20px; border: 0; border-radius: 8px;
+    background: var(--accent); color: var(--on-accent); cursor: pointer;
+  }
+  .submit:disabled { opacity: .6; cursor: progress; }
+  .hint { margin-top: 8px; font-size: .8125rem; color: var(--muted); }
+
+  .status { margin-top: 28px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .notice { margin-top: 28px; padding: 12px 16px; border-radius: 10px; font-size: .9375rem; }
+  .notice.warn { background: var(--warn-bg); color: var(--warn); }
+  .notice.err { background: var(--err-bg); color: var(--err); }
+
+  .card {
+    margin-top: 28px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 22px 24px;
+  }
+  .answer { font-size: 1.0625rem; margin: 0; white-space: pre-wrap; }
+  .answer.none { color: var(--muted); }
+  .answer sup a { color: var(--accent); text-decoration: none; font-weight: 600; padding: 0 1px; }
+  .meta { margin-top: 12px; font-size: .8125rem; color: var(--muted); }
+
+  h2 {
+    font-size: .75rem; text-transform: uppercase; letter-spacing: .07em; font-weight: 600;
+    color: var(--muted); margin: 26px 0 12px;
+  }
+  ol.cites { list-style: none; padding: 0; margin: 0; display: grid; gap: 16px; }
+  .cite { border-left: 3px solid var(--accent); padding: 2px 0 2px 14px; scroll-margin-top: 16px; }
+  .cite:target { background: var(--accent-weak); border-radius: 0 6px 6px 0; }
+  .cite .src { font-weight: 600; }
+  .cite .where { color: var(--muted); font-size: .875rem; }
+  .cite blockquote { margin: 6px 0; font-size: .9375rem; }
+  .cite .links { font-size: .875rem; display: flex; gap: 16px; flex-wrap: wrap; }
+  .cite a, footer a { color: var(--accent); }
+
+  details { margin-top: 22px; }
+  summary { cursor: pointer; color: var(--muted); font-size: .875rem; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .8125rem; margin-top: 10px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  td.num { font-family: var(--mono); white-space: nowrap; }
+
+  footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--border); font-size: .8125rem; color: var(--muted); }
+  footer p { margin: 4px 0; }
+  @media (max-width: 520px) {
+    main { padding-top: 28px; }
+    .card { padding: 18px 16px; }
+    .actions { width: 100%; justify-content: space-between; margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>lex-rag</h1>
+    <p>Oʻzbekiston qonunchiligi boʻyicha savol bering: javob lex.uz moddalaridan iqtibos bilan keladi.</p>
+  </header>
+
+  <form id="form" novalidate>
+    <label class="sr" for="q">Savol</label>
+    <textarea id="q" name="q" maxlength="500" required
+      placeholder="Masalan: yillik asosiy mehnat taʼtili necha kun?"></textarea>
+    <div class="row">
+      <div class="examples" aria-label="Namuna savollar">
+        <button type="button" class="chip">Yillik asosiy mehnat taʼtilining eng kam muddati qancha?</button>
+        <button type="button" class="chip">Какой срок исковой давности установлен Гражданским кодексом?</button>
+        <button type="button" class="chip">Ҳар ким эркинлик ва шахсий дахлсизлик ҳуқуқига эгами?</button>
+      </div>
+      <div class="actions">
+        <span class="counter" id="counter">0 / 500</span>
+        <button type="submit" class="submit" id="submit">Soʻrash</button>
+      </div>
+    </div>
+    <p class="hint">Lotin, kirill yoki rus tilida yozishingiz mumkin. Ctrl + Enter — yuborish.</p>
+  </form>
+
+  <div id="out" aria-live="polite"></div>
+
+  <footer>
+    <p id="index-info">Indeks: Konstitutsiya, kodekslar va amaldagi qonunlar.</p>
+    <p>Bu huquqiy maslahat emas: javobni har doim lex.uz'dagi asl matn bilan tekshiring.</p>
+    <p><a href="/docs">API hujjatlari</a> · <a href="https://github.com/SamijonovSardor/lex-rag">GitHub</a></p>
+  </footer>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const form = $("form"), q = $("q"), out = $("out"), submit = $("submit"), counter = $("counter");
+  const LANG = { "uz-Latn": "oʻzbekcha", "uz-Cyrl": "ўзбекча", "ru": "русский" };
+
+  const el = (tag, attrs = {}, ...children) => {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === "class") node.className = v; else node.setAttribute(k, v);
+    }
+    for (const c of children) if (c != null) node.append(c);  // strings become text: no HTML injection
+    return node;
+  };
+  const seconds = (ms) => (ms / 1000).toFixed(1).replace(".", ",") + " s";
+  const score = (x) => (x == null ? "—" : x.toFixed(3));
+
+  const updateCounter = () => { counter.textContent = `${q.value.length} / 500`; };
+  q.addEventListener("input", updateCounter);
+  q.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); form.requestSubmit(); }
+  });
+  document.querySelectorAll(".chip").forEach((chip) => chip.addEventListener("click", () => {
+    q.value = chip.textContent; updateCounter(); form.requestSubmit();
+  }));
+
+  function answerWithMarkers(text) {
+    const p = el("p", { class: "answer" });
+    for (const part of text.split(/(\[\d+\])/)) {
+      const m = part.match(/^\[(\d+)\]$/);
+      if (m) p.append(el("sup", {}, el("a", { href: `#cite-${m[1]}`, "aria-label": `manba ${m[1]}` }, `[${m[1]}]`)));
+      else if (part) p.append(part);
+    }
+    return p;
+  }
+
+  function render(r) {
+    const card = el("section", { class: "card", "aria-label": "Javob" });
+    if (r.status === "error" || r.status === "timeout") {
+      out.replaceChildren(el("div", { class: "notice err" },
+        "Javob tayyorlab boʻlmadi. Birozdan keyin qayta urinib koʻring."));
+      return;
+    }
+    card.append(r.no_answer ? el("p", { class: "answer none" }, r.answer) : answerWithMarkers(r.answer || ""));
+    const bits = [];
+    if (r.answer_language) bits.push(LANG[r.answer_language] || r.answer_language);
+    if (r.timing && r.timing.total_ms) bits.push(seconds(r.timing.total_ms));
+    if (r.no_answer) bits.push("qonunchilikda javob topilmadi");
+    card.append(el("div", { class: "meta" }, bits.join(" · ")));
+
+    if (r.citations.length) {
+      card.append(el("h2", {}, "Manbalar"));
+      const list = el("ol", { class: "cites" });
+      for (const c of r.citations) {
+        const where = [c.article, c.part, c.edition_date && `tahrir: ${c.edition_date}`].filter(Boolean).join(" · ");
+        list.append(el("li", { class: "cite", id: `cite-${c.ref}` },
+          el("div", { class: "src" }, `[${c.ref}] ${c.doc_title}`),
+          el("div", { class: "where" }, where),
+          el("blockquote", {}, `«${c.quote}»`),
+          el("div", { class: "links" },
+            el("a", { href: c.source_url, target: "_blank", rel: "noopener" }, "lex.uz'da shu joy"),
+            el("a", { href: c.url, target: "_blank", rel: "noopener" }, "Hujjat"))));
+      }
+      card.append(list);
+    }
+
+    if (r.contexts.length) {
+      const rows = r.contexts.map((c) => el("tr", {},
+        el("td", { class: "num" }, String(c.rank)),
+        el("td", {}, `${c.doc_title}${c.article ? " — " + c.article : ""}`),
+        el("td", { class: "num" }, score(c.retrieval_score)),
+        el("td", { class: "num" }, score(c.rerank_score)),
+        el("td", {}, c.used_in_answer ? "✓" : "")));
+      card.append(el("details", {},
+        el("summary", {}, `Qidiruv topgan parchalar (${r.contexts.length})`),
+        el("div", { class: "table-wrap" }, el("table", {},
+          el("thead", {}, el("tr", {}, el("th", {}, "#"), el("th", {}, "Hujjat"),
+            el("th", {}, "Oʻxshashlik"), el("th", {}, "Reranker"), el("th", {}, "Javobda"))),
+          el("tbody", {}, ...rows)))));
+    }
+    out.replaceChildren(card);
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const question = q.value.trim();
+    if (!question) { q.focus(); return; }
+    submit.disabled = true;
+    const started = performance.now();
+    const status = el("p", { class: "status" }, "Javob tayyorlanmoqda…");
+    out.replaceChildren(status);
+    const tick = setInterval(() => {
+      status.textContent = `Javob tayyorlanmoqda… ${seconds(performance.now() - started)}`;
+    }, 200);
+    try {
+      const res = await fetch("/demo/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ question }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = (body.error && body.error.message) || "Soʻrovda xato yuz berdi.";
+        out.replaceChildren(el("div", { class: `notice ${res.status === 429 || res.status === 503 ? "warn" : "err"}` }, msg));
+      } else {
+        render(body);
+      }
+    } catch {
+      out.replaceChildren(el("div", { class: "notice err" }, "Serverga ulanib boʻlmadi. Internetni tekshirib, qayta urinib koʻring."));
+    } finally {
+      clearInterval(tick);
+      submit.disabled = false;
+    }
+  });
+
+  fetch("/v1/meta").then((r) => r.json()).then((m) => {
+    $("index-info").textContent =
+      `Indeks: ${m.documents} ta hujjat (Konstitutsiya, kodekslar, qonunlar), lex.uz holati ${m.lex_snapshot_date}.`;
+  }).catch(() => {});
+})();
+</script>
+</body>
+</html>
