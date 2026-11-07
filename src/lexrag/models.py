@@ -25,6 +25,10 @@ class ActForm(IntEnum):
     CONSTITUTION = 4131
     CODE = 3964
     LAW = 3968
+    DECREE = 3973  # farmon
+    DIRECTIVE = 588  # farmoyish
+    RESOLUTION = 3972  # qaror (President, Cabinet and other bodies)
+    ORDER = 486  # buyruq (ministries)
 
 
 class DocRef(BaseModel):

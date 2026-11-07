@@ -64,6 +64,7 @@ class Context:
     aliases: list[int] = field(default_factory=list)  # every lex.uz id of the act
     unit_position: int = -1
     neighbour: bool = False  # added as the article next to a top candidate
+    adopted: date | None = None  # when the act was adopted: the newest decree wins
 
     @property
     def text(self) -> str:
@@ -96,7 +97,8 @@ def rrf(*rankings: list[str]) -> dict[str, float]:
 _DETAILS_SQL = """
 SELECT c.chunk_id, c.doc_id, d.lex_id, d.title, d.doc_type, d.url, d.source_url,
        d.edition_date, d.doc_status, c.article, c.article_title, c.heading, c.paragraphs,
-       c.amendments, 1 - (c.embedding <=> %(v)s) AS similarity, d.aliases, c.unit_position
+       c.amendments, 1 - (c.embedding <=> %(v)s) AS similarity, d.aliases, c.unit_position,
+       d.adopted
 FROM chunks c JOIN documents d USING (doc_id)
 WHERE c.chunk_id = ANY(%(ids)s)
 """
@@ -221,7 +223,7 @@ class Retriever:
 def _context(row: tuple, v_rank: int | None, t_rank: int | None, score: float) -> Context:
     (chunk_id, doc_id, lex_id, title, doc_type, url, source_url, edition, status, article,
      article_title, heading, paragraphs, amendments, similarity, aliases,
-     unit_position) = row  # fmt: skip
+     unit_position, adopted) = row  # fmt: skip
     return Context(
         chunk_id=chunk_id,
         doc_id=doc_id,
@@ -243,6 +245,7 @@ def _context(row: tuple, v_rank: int | None, t_rank: int | None, score: float) -
         rrf=score,
         aliases=list(aliases),
         unit_position=unit_position,
+        adopted=adopted,
     )
 
 

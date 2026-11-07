@@ -121,6 +121,40 @@ def test_unnumbered_and_duplicate_articles_get_unique_ids() -> None:
     assert ids == ["lex:100#u0#p1", "lex:100#art-3#p1", "lex:100#u2#p1"]
 
 
+def test_decree_without_articles_is_chunked_by_point() -> None:
+    doc = doc_with(
+        unit(0, None, "Aholi turmush darajasini oshirish maqsadida:"),
+        unit(
+            1, None, "1. Pensiyalar oshirilsin.", "a) 10 foizga;", "b) 15 foizga.", "2. Nafaqalar."
+        ),
+        unit(
+            2,
+            None,
+            "3. Bazaviy miqdor belgilansin.",
+            "1. Ilovadagi birinchi band.",
+            "1.1. Kichik band.",
+        ),
+    )
+    chunks = chunk_document(doc, row_for(doc), MODEL)
+    ids = [c.chunk_id.split("#", 1)[1] for c in chunks]
+    assert ids == ["u0#p1", "band-1#p1", "band-2#p1", "band-3#p1", "u2-band-1#p1"]
+    assert [c.article for c in chunks] == [None, "1-band", "2-band", "3-band", "1-band"]
+    band1 = chunks[1]
+    assert [p.text for p in band1.paragraphs] == [
+        "1. Pensiyalar oshirilsin.",
+        "a) 10 foizga;",
+        "b) 15 foizga.",
+    ]
+    assert {p.qism for p in band1.paragraphs} == {1}  # sub-items stay in the point's part
+    assert [p.text for p in chunks[4].paragraphs][-1] == "1.1. Kichik band."  # "1.1." is no point
+    assert band1.elem_id == band1.paragraphs[0].elem_id  # the link opens at the point
+
+
+def test_points_are_not_split_out_of_articles() -> None:
+    doc = doc_with(unit(0, "5", "1. Birinchi.", "2. Ikkinchi."))
+    assert [c.chunk_id for c in chunk_document(doc, row_for(doc), MODEL)] == ["lex:100#art-5#p1"]
+
+
 def test_empty_units_are_skipped() -> None:
     doc = doc_with(unit(0, "1", ""), unit(1, "2", "Matn."))
     assert [c.article for c in chunk_document(doc, row_for(doc), MODEL)] == ["2-modda"]

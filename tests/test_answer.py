@@ -188,3 +188,11 @@ def test_llm_retries_then_reports_errors() -> None:
     respx.post(URL).mock(side_effect=httpx.ReadTimeout("slow"))
     with pytest.raises(LLMTimeout):
         llm.complete_json([], {}, name="t")
+
+
+def test_quote_with_our_part_labels_is_found() -> None:
+    # The model copies the "(2-qism) " labels of the excerpt format into a long quote.
+    quote = "yigirma bir kalendar kun etib beriladi.\n(2-qism) Taʼtil ish yili davomida"
+    text, qism, _ = find_quote(CONTEXTS[0], quote)
+    assert text == "yigirma bir kalendar kun etib beriladi. Taʼtil ish yili davomida"
+    assert qism == 1

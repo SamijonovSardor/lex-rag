@@ -73,7 +73,9 @@ states the rule of the sentence citing it: its number, deadline, body or conditi
 inside the quote. Copy it character for character in the excerpt's language. Never \
 translate, shorten or paraphrase a quote. Do not quote table fragments that lose their \
 meaning; quote the row that states the value.
-4. Copy numbers, amounts, deadlines and terms exactly as the excerpt writes them.
+4. Copy numbers, amounts, deadlines and terms exactly as the excerpt writes them. If \
+decrees or resolutions of different dates set different values for the same thing (a \
+rate, the base amount), the most recently adopted one is in force: answer with it.
 5. If the excerpts do not answer the question, set no_answer to true, say in one sentence \
 that the provided legislation does not answer it, and return no citations. Do not guess.
 6. The answer must be in {language}. Answer only what the question asks: no background \
@@ -114,6 +116,8 @@ def format_contexts(contexts: list[Context]) -> str:
             head += f" — {c.article}" + (f". {c.article_title}" if c.article_title else "")
         elif c.heading:
             head += f" — {c.heading}"
+        if c.doc_type not in ("qonun", "kodeks", "konstitutsiya") and c.adopted:
+            head += f" ({c.doc_type}, adopted {c.adopted.isoformat()})"
         if c.edition_date:
             head += f" (edition of {c.edition_date.isoformat()})"
         lines = [head, *(f"({p.qism}-qism) {p.text}" for p in c.paragraphs)]
@@ -129,8 +133,14 @@ def _norm(text: str) -> str:
 _STRIP = " \t\"'«»“”„.…"
 
 
+_PART_LABEL_RE = re.compile(r"\s*\(\d+-qism\)\s*")
+
+
 def find_quote(context: Context, quote: str) -> tuple[str, int, int] | None:
     """(source text, part, elem_id) of `quote` inside the context, or None."""
+    # A quote over several paragraphs often carries the "(4-qism) " labels of our excerpt
+    # format: they are not the law's words (a decree's BHM answer was refused over them).
+    quote = _PART_LABEL_RE.sub(" ", quote)
     q = _norm(quote).strip(_STRIP)
     if len(q) < 8:
         return None

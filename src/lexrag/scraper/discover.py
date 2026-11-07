@@ -41,8 +41,14 @@ _STATUS = {
 }
 
 
+_LEGISLATION = {ActForm.CONSTITUTION, ActForm.CODE, ActForm.LAW}
+
+
 def listing_path(form: ActForm) -> str:
-    return f"{LISTING_PATH}?lang={LANG_UZ_LATIN}&sort_id={SORT_LEGISLATION}&form_id={form.value}"
+    # The "Qonun hujjatlari" group (sort_id) holds only acts of parliament: with it the
+    # listing of decrees and resolutions comes back empty.
+    group = f"&sort_id={SORT_LEGISLATION}" if form in _LEGISLATION else ""
+    return f"{LISTING_PATH}?lang={LANG_UZ_LATIN}{group}&form_id={form.value}"
 
 
 def parse_requisites(text: str) -> tuple[str | None, date | None, str | None]:

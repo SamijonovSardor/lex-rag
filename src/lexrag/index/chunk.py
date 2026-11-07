@@ -6,6 +6,10 @@ is cut at paragraph boundaries into pieces of about TARGET_CHARS, and each piece
 the previous piece's last paragraph, so a sentence that leans on the one before it is not
 cut off from it.
 
+Decrees and resolutions have no articles: their rule is the numbered point (band, "3. …").
+In a document without articles each band is one chunk ("3-band"); its sub-items (a), 1)
+stay with it, and the text before the first band (the preamble) is a chunk of its own.
+
 Size of the corpus on 2026-10-30: median unit 771 characters, p90 2 350, p99 6 059,
 longest 129 223 (a table). 556 of 18 646 units exceed 4 000.
 """
@@ -15,13 +19,15 @@ import re
 
 from lexrag.models import Chunk, ChunkParagraph, Document, IndexedDocument, Unit
 
-CHUNKER_VERSION = "1"  # bump when the output changes: forces a rewrite (vectors are reused)
+CHUNKER_VERSION = "2"  # bump when the output changes: forces a rewrite (vectors are reused)
 MAX_CHARS = 4000
 TARGET_CHARS = 2000
 
 # A list band continues the current part (qism) of an article instead of opening a new one:
 # "1)", "12-1)", "a)", "gʻ)", "—", "•". Seen in the corpus: 1) … 8), a) b) v) …
 _BAND_RE = re.compile(r"^\s*(?:\d+(?:-\d+)?\)|[a-zʻ]{1,2}\)|[—–•]\s?|-\s)", re.IGNORECASE)
+# A numbered point of a decree or resolution: "3. Quyidagilar:", "12-1. …" (not "1.1." or "2026.")
+_POINT_RE = re.compile(r"^\s*(\d{1,3}(?:-\d{1,2})?)\.\s")
 _SUPERSCRIPT_CHARS = "⁰¹²³⁴⁵⁶⁷⁸⁹"
 _SUPERSCRIPTS = str.maketrans(_SUPERSCRIPT_CHARS, "0123456789")
 _SENTENCE_END_RE = re.compile(r"(?<=[.;:])\s+")
@@ -43,6 +49,17 @@ def article_slug(number: str) -> str:
     plain = number.translate(_SUPERSCRIPTS)
     first_sup = next((i for i, ch in enumerate(number) if ch in _SUPERSCRIPT_CHARS), None)
     return plain if first_sup is None else f"{plain[:first_sup]}.{plain[first_sup:]}"
+
+
+def split_points(paragraphs: list[ChunkParagraph]) -> list[tuple[str | None, list[ChunkParagraph]]]:
+    """Paragraphs of a unit without articles → (point number or None, its paragraphs)."""
+    groups: list[tuple[str | None, list[ChunkParagraph]]] = []
+    for p in paragraphs:
+        m = _POINT_RE.match(p.text)
+        if m or not groups:
+            groups.append((m[1] if m else None, []))
+        groups[-1][1].append(p)
+    return groups
 
 
 def _split_long_paragraph(p: ChunkParagraph) -> list[ChunkParagraph]:
@@ -107,40 +124,53 @@ def embed_hash(model: str, text: str) -> str:
 def chunk_document(doc: Document, meta: IndexedDocument, model: str) -> list[Chunk]:
     chunks: list[Chunk] = []
     used_anchors: set[str] = set()
+    by_points = not any(u.number for u in doc.units)  # a decree or resolution
     for unit in doc.units:
-        texts = [p.text for p in unit.paragraphs]
-        if not any(t.strip() for t in texts):
+        if not any(p.text.strip() for p in unit.paragraphs):
             continue
-        parts = number_parts(texts)
-        paragraphs = [
-            ChunkParagraph(elem_id=p.elem_id, qism=q, text=p.text)
-            for p, q in zip(unit.paragraphs, parts, strict=True)
-        ]
-        anchor = f"art-{article_slug(unit.number)}" if unit.number else f"u{unit.position}"
-        if anchor in used_anchors:  # e.g. an amending act quoting "12¹-modda" twice
-            anchor = f"u{unit.position}"
-        used_anchors.add(anchor)
+        plain = [ChunkParagraph(elem_id=p.elem_id, qism=0, text=p.text) for p in unit.paragraphs]
+        groups = split_points(plain) if by_points else [(None, plain)]
+        for point, group in groups:
+            parts = number_parts([p.text for p in group])
+            paragraphs = [
+                ChunkParagraph(elem_id=p.elem_id, qism=q, text=p.text)
+                for p, q in zip(group, parts, strict=True)
+            ]
+            if unit.number:
+                anchor, article = f"art-{article_slug(unit.number)}", f"{unit.number}-modda"
+            elif point:
+                anchor, article = f"band-{point}", f"{point}-band"
+            else:
+                anchor, article = f"u{unit.position}", None
+            if anchor in used_anchors and not point:  # e.g. an act quoting "12¹-modda" twice
+                anchor = f"u{unit.position}"
+            if anchor in used_anchors:  # bands restart in an annex, even inside one unit
+                base, n = f"u{unit.position}-{anchor}", 2
+                anchor = base
+                while anchor in used_anchors:
+                    anchor, n = f"{base}~{n}", n + 1
+            used_anchors.add(anchor)
 
-        pieces = split_pieces(paragraphs)
-        for i, piece in enumerate(pieces, start=1):
-            text = embed_text(meta.title, unit, piece)
-            chunks.append(
-                Chunk(
-                    chunk_id=f"lex:{meta.lex_id}#{anchor}#p{i}",
-                    doc_id=doc.doc_id,
-                    unit_position=unit.position,
-                    elem_id=unit.elem_id,
-                    kind=unit.kind,
-                    article=f"{unit.number}-modda" if unit.number else None,
-                    article_title=unit.title,
-                    piece=i,
-                    pieces=len(pieces),
-                    heading=unit.heading,
-                    path=unit.path,
-                    paragraphs=piece,
-                    amendments=unit.amendments,
-                    embed_text=text,
-                    embed_hash=embed_hash(model, text),
+            pieces = split_pieces(paragraphs)
+            for i, piece in enumerate(pieces, start=1):
+                text = embed_text(meta.title, unit, piece)
+                chunks.append(
+                    Chunk(
+                        chunk_id=f"lex:{meta.lex_id}#{anchor}#p{i}",
+                        doc_id=doc.doc_id,
+                        unit_position=unit.position,
+                        elem_id=group[0].elem_id if point else unit.elem_id,
+                        kind=unit.kind,
+                        article=article,
+                        article_title=unit.title,
+                        piece=i,
+                        pieces=len(pieces),
+                        heading=unit.heading,
+                        path=unit.path,
+                        paragraphs=piece,
+                        amendments=unit.amendments,
+                        embed_text=text,
+                        embed_hash=embed_hash(model, text),
+                    )
                 )
-            )
     return chunks

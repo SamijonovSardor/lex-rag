@@ -34,6 +34,10 @@ _DOC_TYPE = {
     ActForm.CONSTITUTION: "konstitutsiya",
     ActForm.CODE: "kodeks",
     ActForm.LAW: "qonun",
+    ActForm.DECREE: "farmon",
+    ActForm.DIRECTIVE: "farmoyish",
+    ActForm.RESOLUTION: "qaror",
+    ActForm.ORDER: "buyruq",
 }
 _DOC_STATUS = {
     DocStatus.IN_FORCE: "amalda",

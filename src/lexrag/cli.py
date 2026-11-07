@@ -11,6 +11,7 @@ import asyncio
 import logging
 import sys
 from collections import Counter
+from pathlib import Path
 
 from lexrag.config import get_settings
 from lexrag.models import ActForm, DocRef
@@ -23,17 +24,24 @@ from lexrag.storage import ParsedStore, RawStore, read_jsonl, write_jsonl
 log = logging.getLogger("lexrag")
 
 _FORMS = {"constitution": ActForm.CONSTITUTION, "code": ActForm.CODE, "law": ActForm.LAW}
+_MORE_FORMS = {
+    "decree": ActForm.DECREE,
+    "directive": ActForm.DIRECTIVE,
+    "resolution": ActForm.RESOLUTION,
+    "order": ActForm.ORDER,
+}
 
 
 async def cmd_discover(args: argparse.Namespace) -> int:
     s = get_settings()
-    forms = [_FORMS[f] for f in args.forms]
+    forms = [{**_FORMS, **_MORE_FORMS}[f] for f in args.forms]
+    out = args.out or s.catalog_path
     async with LexClient(s) as client:
         refs = await discover(client, forms, max_pages=args.max_pages)
-    n = write_jsonl(s.catalog_path, refs)
+    n = write_jsonl(out, refs)
     scoped = [r for r in refs if in_scope(r)]
     by_form = Counter(r.form.name for r in scoped if r.form)
-    print(f"catalog: {n} docs → {s.catalog_path}; in scope: {len(scoped)} {dict(by_form)}")
+    print(f"catalog: {n} docs → {out}; in scope: {len(scoped)} {dict(by_form)}")
     return 0
 
 
@@ -164,7 +172,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     d = sub.add_parser("discover", help="list documents on lex.uz")
-    d.add_argument("--forms", nargs="+", choices=list(_FORMS), default=list(_FORMS))
+    d.add_argument("--forms", nargs="+", choices=[*_FORMS, *_MORE_FORMS], default=list(_FORMS))
+    d.add_argument("--out", type=Path, help="catalog file (default: the indexed catalog)")
     d.add_argument("--max-pages", type=int)
 
     f = sub.add_parser("fetch", help="download in-scope documents")
